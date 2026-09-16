@@ -1,1 +1,10 @@
-{"name":"今天吃什么","short_name":"今天吃什么","start_url":"./","display":"standalone","background_color":"#fffaf2","theme_color":"#fffaf2","lang":"zh-CN","icons":[]}
+{
+  "name": "What's for Dinner?",
+  "short_name": "Dinner Picker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fffaf2",
+  "theme_color": "#fffaf2",
+  "lang": "en",
+  "icons": []
+}
