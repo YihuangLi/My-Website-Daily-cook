@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fffaf2">
+<title>今天吃什么</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>今天吃什么</h1><p>把会做的菜交给命运</p></header>
+
+<main>
+<section id="home" class="page active">
+  <div class="hero">
+    <div class="dice" id="dice">🎲</div>
+    <div class="result" id="result">
+      <span class="muted">今天吃什么？</span>
+    </div>
+    <button class="primary" id="drawBtn">抽一抽</button>
+    <div class="actions">
+      <button id="againBtn" class="secondary hidden">再抽一次</button>
+      <button id="detailBtn" class="secondary hidden">查看食谱</button>
+    </div>
+  </div>
+  <div class="stats">
+    <div><strong id="count">0</strong><span>道食谱</span></div>
+    <div><strong id="recent">0</strong><span>最近抽过</span></div>
+  </div>
+</section>
+
+<section id="recipes" class="page">
+  <div class="section-title"><h2>我的食谱</h2><button id="addBtn">＋ 添加</button></div>
+  <div id="recipeList" class="grid"></div>
+</section>
+
+<section id="detail" class="page">
+  <button class="back" data-page="recipes">‹ 返回</button>
+  <div id="detailContent"></div>
+</section>
+</main>
+
+<nav>
+<button class="nav active" data-page="home">🎲<span>今天</span></button>
+<button class="nav" data-page="recipes">🍳<span>食谱</span></button>
+</nav>
+
+<div class="modal hidden" id="modal">
+  <div class="sheet">
+    <button class="close" id="closeModal">×</button>
+    <h2>添加食谱</h2>
+    <label>菜名<input id="name" placeholder="例如：番茄鸡蛋面"></label>
+    <label>分类<select id="category"><option>家常菜</option><option>面食</option><option>米饭</option><option>汤</option><option>早餐</option><option>其他</option></select></label>
+    <label>制作时间（分钟）<input id="minutes" type="number" min="1" placeholder="30"></label>
+    <label>食材<textarea id="ingredients" placeholder="番茄 2个&#10;鸡蛋 2个&#10;面条 200g"></textarea></label>
+    <label>做法<textarea id="steps" placeholder="1. ...&#10;2. ..."></textarea></label>
+    <label>图片<input id="image" type="file" accept="image/*"></label>
+    <button class="primary" id="saveBtn">保存食谱</button>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
