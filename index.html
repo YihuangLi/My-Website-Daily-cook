@@ -1,65 +1,129 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#fffaf2">
-<title>今天吃什么</title>
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fffaf2">
+  <title>What's for Dinner?</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header><h1>今天吃什么</h1><p>把会做的菜交给命运</p></header>
+  <header>
+    <h1>What's for Dinner?</h1>
+    <p>Save your recipes. Let fate pick your next meal.</p>
+  </header>
 
-<main>
-<section id="home" class="page active">
-  <div class="hero">
-    <div class="dice" id="dice">🎲</div>
-    <div class="result" id="result">
-      <span class="muted">今天吃什么？</span>
+  <main>
+    <section id="home" class="page active">
+      <div class="hero">
+        <div class="dice" id="dice">🎲</div>
+
+        <div class="result" id="result">
+          <span class="muted">What should we cook today?</span>
+        </div>
+
+        <button class="primary" id="drawBtn">Pick a Recipe</button>
+
+        <div class="actions">
+          <button id="againBtn" class="secondary hidden">
+            Pick Again
+          </button>
+          <button id="detailBtn" class="secondary hidden">
+            View Recipe
+          </button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div>
+          <strong id="count">0</strong>
+          <span>Recipes</span>
+        </div>
+        <div>
+          <strong id="recent">0</strong>
+          <span>Recently Picked</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="recipes" class="page">
+      <div class="section-title">
+        <h2>My Recipes</h2>
+        <button id="addBtn">＋ Add</button>
+      </div>
+
+      <div id="recipeList" class="grid"></div>
+    </section>
+
+    <section id="detail" class="page">
+      <button class="back" data-page="recipes">‹ Back</button>
+      <div id="detailContent"></div>
+    </section>
+  </main>
+
+  <nav>
+    <button class="nav active" data-page="home">
+      🎲<span>Today</span>
+    </button>
+    <button class="nav" data-page="recipes">
+      🍳<span>Recipes</span>
+    </button>
+  </nav>
+
+  <div class="modal hidden" id="modal">
+    <div class="sheet">
+      <button class="close" id="closeModal" aria-label="Close">×</button>
+
+      <h2>Add a Recipe</h2>
+
+      <label>
+        Recipe Name
+        <input id="name" placeholder="e.g. Tomato and Egg Noodles">
+      </label>
+
+      <label>
+        Category
+        <select id="category">
+          <option>Home Cooking</option>
+          <option>Noodles &amp; Pasta</option>
+          <option>Rice Dishes</option>
+          <option>Soups</option>
+          <option>Breakfast</option>
+          <option>Other</option>
+        </select>
+      </label>
+
+      <label>
+        Cooking Time (minutes)
+        <input id="minutes" type="number" min="1" placeholder="30">
+      </label>
+
+      <label>
+        Ingredients
+        <textarea
+          id="ingredients"
+          placeholder="2 tomatoes&#10;2 eggs&#10;200 g noodles"
+        ></textarea>
+      </label>
+
+      <label>
+        Instructions
+        <textarea
+          id="steps"
+          placeholder="1. ...&#10;2. ..."
+        ></textarea>
+      </label>
+
+      <label>
+        Photo
+        <input id="image" type="file" accept="image/*">
+      </label>
+
+      <button class="primary" id="saveBtn">Save Recipe</button>
     </div>
-    <button class="primary" id="drawBtn">抽一抽</button>
-    <div class="actions">
-      <button id="againBtn" class="secondary hidden">再抽一次</button>
-      <button id="detailBtn" class="secondary hidden">查看食谱</button>
-    </div>
   </div>
-  <div class="stats">
-    <div><strong id="count">0</strong><span>道食谱</span></div>
-    <div><strong id="recent">0</strong><span>最近抽过</span></div>
-  </div>
-</section>
 
-<section id="recipes" class="page">
-  <div class="section-title"><h2>我的食谱</h2><button id="addBtn">＋ 添加</button></div>
-  <div id="recipeList" class="grid"></div>
-</section>
-
-<section id="detail" class="page">
-  <button class="back" data-page="recipes">‹ 返回</button>
-  <div id="detailContent"></div>
-</section>
-</main>
-
-<nav>
-<button class="nav active" data-page="home">🎲<span>今天</span></button>
-<button class="nav" data-page="recipes">🍳<span>食谱</span></button>
-</nav>
-
-<div class="modal hidden" id="modal">
-  <div class="sheet">
-    <button class="close" id="closeModal">×</button>
-    <h2>添加食谱</h2>
-    <label>菜名<input id="name" placeholder="例如：番茄鸡蛋面"></label>
-    <label>分类<select id="category"><option>家常菜</option><option>面食</option><option>米饭</option><option>汤</option><option>早餐</option><option>其他</option></select></label>
-    <label>制作时间（分钟）<input id="minutes" type="number" min="1" placeholder="30"></label>
-    <label>食材<textarea id="ingredients" placeholder="番茄 2个&#10;鸡蛋 2个&#10;面条 200g"></textarea></label>
-    <label>做法<textarea id="steps" placeholder="1. ...&#10;2. ..."></textarea></label>
-    <label>图片<input id="image" type="file" accept="image/*"></label>
-    <button class="primary" id="saveBtn">保存食谱</button>
-  </div>
-</div>
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
-<!-- Trigger GitHub Pages deployment -->
