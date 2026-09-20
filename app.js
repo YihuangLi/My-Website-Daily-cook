@@ -245,3 +245,37 @@ $("saveBtn").onclick = () => {
 };
 
 render();
+
+// 监听登录/退出状态，控制控制按钮的显示隐藏
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    $("#authContainer").style.display = "none";
+    $("#userControlSection").style.display = "block";
+    fetchRecipes();
+  } else {
+    $("#authContainer").style.display = "block";
+    $("#userControlSection").style.display = "none";
+  }
+});
+
+// 退出登录按钮
+$("#logoutBtn").onclick = async () => {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    alert("Logout failed: " + error.message);
+  } else {
+    location.reload();
+  }
+};
+
+// 注销账号按钮
+$("#deleteAccountBtn").onclick = async () => {
+  if (confirm("确定要注销并删除当前账号吗？")) {
+    const { error } = await supabaseClient.auth.signOut();
+    if (!error) {
+      alert("已退出登录，请在 Supabase 后台彻底删除用户。");
+      location.reload();
+    }
+  }
+};
+
