@@ -6,46 +6,50 @@ let recipes = [];
 let current = null;
 const $ = id => document.getElementById(id);
 
-// 监听登录状态
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  if (session) {
-    $("authContainer").style.display = "none";
-    fetchRecipes();
-  } else {
-    $("authContainer").style.display = "block";
-  }
-});
-
-// 登录与注册按钮事件
-$("loginBtn").onclick = async () => {
-  const email = $("authEmail").value;
-  const password = $("authPassword").value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) alert(error.message);
-};
-
-$("signUpBtn").onclick = async () => {
-  const email = $("authEmail").value;
-  const password = $("authPassword").value;
-  const { error } = await supabaseClient.auth.signUp({ email, password });
-  if (error) alert(error.message);
-  else alert("Check your email for confirmation link!");
-};
-
-// 从云端拉取菜谱数据
-async function fetchRecipes() {
-  const { data, error } = await supabaseClient.from('recipes').select('*');
-  if (!error) {
-    recipes = data || [];
-    render();
-  }
+// 辅助函数：转义 HTML 字符防止注入
+function esc(s = "") {
+  return String(s).replace(/[&<>"']/g, m => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
 }
 
+// 页面切换逻辑
+function page(id) {
+  document.querySelectorAll(".page").forEach(p => {
+    p.classList.toggle("active", p.id === id);
+  });
+
+  document.querySelectorAll(".nav").forEach(n => {
+    n.classList.toggle("active", n.dataset.page === id);
+  });
+}
+
+document.querySelectorAll("[data-page]").forEach(b => {
+  b.onclick = () => page(b.dataset.page);
+});
+
+// 从 Supabase 拉取菜谱数据
+async function fetchRecipes() {
+  const { data, error } = await supabaseClient.from('recipes').select('*');
+  if (error) {
+    console.error("Fetch recipes error:", error);
+    return;
+  }
+  recipes = data || [];
+  render();
+}
+
+// 渲染菜谱列表
 function render() {
-  $("count").textContent = recipes.length;
-  $("recent").textContent = recipes.filter(r => r.lastPicked).length;
+  if ($("count")) $("count").textContent = recipes.length;
+  if ($("recent")) $("recent").textContent = recipes.filter(r => r.lastPicked).length;
 
   const list = $("recipeList");
+  if (!list) return;
 
   if (!recipes.length) {
     list.innerHTML = `
@@ -77,33 +81,10 @@ function render() {
   });
 }
 
-function esc(s = "") {
-  return String(s).replace(/[&<>"']/g, m => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[m]));
-}
-
-function page(id) {
-  document.querySelectorAll(".page").forEach(p => {
-    p.classList.toggle("active", p.id === id);
-  });
-
-  document.querySelectorAll(".nav").forEach(n => {
-    n.classList.toggle("active", n.dataset.page === id);
-  });
-}
-
-document.querySelectorAll("[data-page]").forEach(b => {
-  b.onclick = () => page(b.dataset.page);
-});
-
-$("drawBtn").onclick = draw;
-$("againBtn").onclick = draw;
-$("detailBtn").onclick = () => current && showDetail(current.id);
+// 抽签逻辑
+if ($("drawBtn")) $("drawBtn").onclick = draw;
+if ($("againBtn")) $("againBtn").onclick = draw;
+if ($("detailBtn")) $("detailBtn").onclick = () => current && showDetail(current.id);
 
 function draw() {
   if (!recipes.length) {
@@ -119,15 +100,15 @@ function draw() {
     ? recipes.filter(r => !r.lastPicked)
     : recipes;
 
-  const chosen =
-    pool[Math.floor(Math.random() * pool.length)] || recipes[0];
+  const chosen = pool[Math.floor(Math.random() * pool.length)] || recipes[0];
 
-  setTimeout(() => {
+  setTimeout(async () => {
     recipes.forEach(r => r.lastPicked = false);
     chosen.lastPicked = true;
     current = chosen;
 
-    localStorage.setItem(KEY, JSON.stringify(recipes));
+    // 更新选中状态到 Supabase
+    await supabaseClient.from('recipes').update({ lastPicked: true }).eq('id', chosen.id);
 
     $("dice").classList.remove("rolling");
     $("drawBtn").disabled = false;
@@ -139,6 +120,7 @@ function draw() {
   }, 900);
 }
 
+// 展示菜谱详情
 function showDetail(id) {
   current = recipes.find(r => r.id === id);
   if (!current) return;
@@ -176,77 +158,91 @@ function showDetail(id) {
         <h3>Instructions</h3>
         <ol>${steps || "<li>No instructions added yet.</li>"}</ol>
 
-        <button
-          class="secondary"
-          id="deleteBtn"
-          style="margin-top:15px"
-        >
+        <button class="secondary" id="deleteBtn" style="margin-top:15px">
           Delete this recipe
         </button>
       </div>
     </div>
   `;
 
-  $("deleteBtn").onclick = () => {
+  $("deleteBtn").onclick = async () => {
     if (confirm("Are you sure you want to delete this recipe?")) {
-      recipes = recipes.filter(x => x.id !== r.id);
-      save();
-      page("recipes");
+      const { error } = await supabaseClient.from('recipes').delete().eq('id', r.id);
+      if (error) {
+        alert("Delete failed: " + error.message);
+      } else {
+        recipes = recipes.filter(x => x.id !== r.id);
+        render();
+        page("recipes");
+      }
     }
   };
 
   page("detail");
 }
 
-$("addBtn").onclick = () => {
-  $("modal").classList.remove("hidden");
-};
+// 弹窗逻辑
+if ($("addBtn")) {
+  $("addBtn").onclick = () => $("modal").classList.remove("hidden");
+}
+if ($("closeModal")) {
+  $("closeModal").onclick = () => $("modal").classList.add("hidden");
+}
 
-$("closeModal").onclick = () => {
-  $("modal").classList.add("hidden");
-};
+// 保存菜谱（修复 save 报错并匹配真实字段）
+if ($("saveBtn")) {
+  $("saveBtn").onclick = () => {
+    const name = $("name").value.trim();
+    if (!name) {
+      alert("Please enter a recipe name.");
+      return;
+    }
 
-$("saveBtn").onclick = () => {
-  const name = $("name").value.trim();
+    const file = $("image").files[0];
 
-  if (!name) {
-    alert("Please enter a recipe name.");
-    return;
-  }
+    const finishSave = async (imageData) => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        alert("Please login first.");
+        return;
+      }
 
-  const file = $("image").files[0];
+      const newRecipe = {
+        name: name,
+        category: $("category").value,
+        minutes: $("minutes").value,
+        ingredients: $("ingredients").value,
+        steps: $("steps").value,
+        image: imageData,
+        user_id: session.user.id
+      };
 
-  const finish = image => {
-    recipes.unshift({
-      id: Date.now().toString(),
-      name,
-      category: $("category").value,
-      minutes: $("minutes").value,
-      ingredients: $("ingredients").value,
-      steps: $("steps").value,
-      image
-    });
+      const { data, error } = await supabaseClient.from('recipes').insert([newRecipe]).select();
 
-    save();
-    $("modal").classList.add("hidden");
+      if (error) {
+        alert("Save failed: " + error.message);
+      } else {
+        if (data && data.length > 0) recipes.unshift(data[0]);
+        render();
+        $("modal").classList.add("hidden");
 
-    ["name", "minutes", "ingredients", "steps", "image"].forEach(id => {
-      $(id).value = "";
-    });
+        ["name", "minutes", "ingredients", "steps", "image"].forEach(id => {
+          if ($(id))$(id).value = "";
+        });
+      }
+    };
+
+    if (file) {
+      const rd = new FileReader();
+      rd.onload = e => finishSave(e.target.result);
+      rd.readAsDataURL(file);
+    } else {
+      finishSave("");
+    }
   };
+}
 
-  if (file) {
-    const rd = new FileReader();
-    rd.onload = e => finish(e.target.result);
-    rd.readAsDataURL(file);
-  } else {
-    finish("");
-  }
-};
-
-render();
-
-// 监听登录/退出状态，控制控制按钮的显示隐藏
+// 登录/退出状态监听
 supabaseClient.auth.onAuthStateChange((event, session) => {
   const authEl = $("authContainer");
   const userControlEl = $("userControlSection");
@@ -258,8 +254,31 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   } else {
     if (authEl) authEl.style.display = "block";
     if (userControlEl) userControlEl.style.display = "none";
+    recipes = [];
+    render();
   }
 });
+
+// 登录按钮事件
+if ($("loginBtn")) {
+  $("loginBtn").onclick = async () => {
+    const email = $("authEmail").value;
+    const password = $("authPassword").value;
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) alert(error.message);
+  };
+}
+
+// 注册按钮事件
+if ($("signUpBtn")) {
+  $("signUpBtn").onclick = async () => {
+    const email = $("authEmail").value;
+    const password = $("authPassword").value;
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) alert(error.message);
+    else alert("Sign up success!");
+  };
+}
 
 // 退出登录按钮
 const logoutBtn = $("logoutBtn");
@@ -274,16 +293,23 @@ if (logoutBtn) {
   };
 }
 
-// 注销账号按钮
+// 注销账号按钮（调用 Supabase RPC 或安全退出）
 const deleteAccountBtn = $("deleteAccountBtn");
 if (deleteAccountBtn) {
   deleteAccountBtn.onclick = async () => {
-    if (confirm("确定要注销并删除当前账号吗？")) {
-      const { error } = await supabaseClient.auth.signOut();
-      if (!error) {
-        alert("已退出登录，请在 Supabase 后台彻底删除用户。");
-        location.reload();
+    if (confirm("确定要注销并彻底删除当前账号吗？")) {
+      const { error } = await supabaseClient.rpc("delete_own_user");
+      if (error) {
+        alert("注销失败，退回为普通退出: " + error.message);
+        await supabaseClient.auth.signOut();
+      } else {
+        await supabaseClient.auth.signOut();
+        alert("账号已成功注销！");
       }
+      location.reload();
     }
   };
 }
+
+// 页面加载初始化
+render();
