@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fffaf2">
@@ -15,6 +16,13 @@
   </header>
 
   <main>
+      <div id="authContainer" class="hero" style="margin-bottom: 20px;">
+        <h2>Login / Sign Up</h2>
+        <input id="authEmail" type="email" placeholder="Email" style="width:100%; margin-bottom:10px; padding:10px; border-radius:8px; border:1px solid #ccc;">
+        <input id="authPassword" type="password" placeholder="Password" style="width:100%; margin-bottom:10px; padding:10px; border-radius:8px; border:1px solid #ccc;">
+        <button id="loginBtn" class="primary">Log In</button>
+        <button id="signUpBtn" class="secondary" style="width:100%; margin-top:8px;">Sign Up</button>
+    </div>
     <section id="home" class="page active">
       <div class="hero">
         <div class="dice" id="dice">🎲</div>
