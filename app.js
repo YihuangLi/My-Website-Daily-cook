@@ -1,11 +1,44 @@
-const KEY = "jintian-recipes-v1";
-let recipes = JSON.parse(localStorage.getItem(KEY) || "[]");
+const SUPABASE_URL = "https://tvqvqhsfvyczzirbkwcn.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_h2b6rF43Bb8qeqKmtW6-pQ_6fWr-cUX";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let recipes = [];
 let current = null;
 const $ = id => document.getElementById(id);
 
-function save() {
-  localStorage.setItem(KEY, JSON.stringify(recipes));
-  render();
+// 监听登录状态
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    $("authContainer").style.display = "none";
+    fetchRecipes();
+  } else {
+    $("authContainer").style.display = "block";
+  }
+});
+
+// 登录与注册按钮事件
+$("loginBtn").onclick = async () => {
+  const email = $("authEmail").value;
+  const password = $("authPassword").value;
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) alert(error.message);
+};
+
+$("signUpBtn").onclick = async () => {
+  const email = $("authEmail").value;
+  const password = $("authPassword").value;
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) alert(error.message);
+  else alert("Check your email for confirmation link!");
+};
+
+// 从云端拉取菜谱数据
+async function fetchRecipes() {
+  const { data, error } = await supabaseClient.from('recipes').select('*');
+  if (!error) {
+    recipes = data || [];
+    render();
+  }
 }
 
 function render() {
