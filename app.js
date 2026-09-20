@@ -273,16 +273,17 @@ if (logoutBtn) {
     }
   };
 }
-};
 
 // 注销账号按钮
-$("#deleteAccountBtn").onclick = async () => {
-  if (confirm("确定要注销并删除当前账号吗？")) {
-    const { error } = await supabaseClient.auth.signOut();
-    if (!error) {
-      alert("已退出登录，请在 Supabase 后台彻底删除用户。");
-      location.reload();
+const deleteAccountBtn = $("deleteAccountBtn");
+if (deleteAccountBtn) {
+  deleteAccountBtn.onclick = async () => {
+    if (confirm("确定要注销并删除当前账号吗？")) {
+      const { error } = await supabaseClient.auth.signOut();
+      if (!error) {
+        alert("已退出登录，请在 Supabase 后台彻底删除用户。");
+        location.reload();
+      }
     }
-  }
-};
-
+  };
+}
