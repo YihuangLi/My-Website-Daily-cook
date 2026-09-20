@@ -4,6 +4,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let recipes = [];
 let current = null;
+let editingRecipeId = null; // 用于记录当前正在编辑的菜谱 ID
 const $ = id => document.getElementById(id);
 
 // 辅助函数：转义 HTML 字符防止注入
@@ -107,7 +108,6 @@ function draw() {
     chosen.lastPicked = true;
     current = chosen;
 
-    // 更新选中状态到 Supabase
     await supabaseClient.from('recipes').update({ lastPicked: true }).eq('id', chosen.id);
 
     $("dice").classList.remove("rolling");
@@ -120,7 +120,7 @@ function draw() {
   }, 900);
 }
 
-// 展示菜谱详情
+// 展示菜谱详情（含编辑和删除按钮）
 function showDetail(id) {
   current = recipes.find(r => r.id === id);
   if (!current) return;
@@ -158,13 +158,27 @@ function showDetail(id) {
         <h3>Instructions</h3>
         <ol>${steps || "<li>No instructions added yet.</li>"}</ol>
 
-        <button class="secondary" id="deleteBtn" style="margin-top:15px">
-          Delete this recipe
-        </button>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+          <button id="editBtn" style="flex: 1;">Edit this recipe</button>
+          <button class="secondary" id="deleteBtn" style="flex: 1; background: #e74c3c; color: white;">Delete</button>
+        </div>
       </div>
     </div>
   `;
 
+  // 点击编辑按钮：带入数据并打开弹窗
+  $("editBtn").onclick = () => {
+    editingRecipeId = r.id; // 记下正在编辑的菜谱 ID
+    $("name").value = r.name || "";
+    $("category").value = r.category || "";
+    $("minutes").value = r.minutes || "";
+    $("ingredients").value = r.ingredients || "";
+    $("steps").value = r.steps || "";
+    
+    $("modal").classList.remove("hidden");
+  };
+
+  // 删除逻辑
   $("deleteBtn").onclick = async () => {
     if (confirm("Are you sure you want to delete this recipe?")) {
       const { error } = await supabaseClient.from('recipes').delete().eq('id', r.id);
@@ -181,15 +195,22 @@ function showDetail(id) {
   page("detail");
 }
 
-// 弹窗逻辑
+// 打开添加弹窗（清空编辑状态）
 if ($("addBtn")) {
-  $("addBtn").onclick = () => $("modal").classList.remove("hidden");
+  $("addBtn").onclick = () => {
+    editingRecipeId = null; // 清空编辑状态，表示这是新增
+    ["name", "minutes", "ingredients", "steps", "image"].forEach(id => {
+      if ($(id))$(id).value = "";
+    });
+    $("modal").classList.remove("hidden");
+  };
 }
+
 if ($("closeModal")) {
   $("closeModal").onclick = () => $("modal").classList.add("hidden");
 }
 
-// 保存菜谱（修复 save 报错并匹配真实字段）
+// 保存逻辑（兼顾【新增】与【修改/Update】）
 if ($("saveBtn")) {
   $("saveBtn").onclick = () => {
     const name = $("name").value.trim();
@@ -207,28 +228,52 @@ if ($("saveBtn")) {
         return;
       }
 
-      const newRecipe = {
+      const recipeData = {
         name: name,
         category: $("category").value,
         minutes: $("minutes").value,
         ingredients: $("ingredients").value,
         steps: $("steps").value,
-        image: imageData,
         user_id: session.user.id
       };
 
-      const { data, error } = await supabaseClient.from('recipes').insert([newRecipe]).select();
+      // 如果选了新图片才更新图片，没选就保留原样
+      if (imageData) {
+        recipeData.image = imageData;
+      }
 
-      if (error) {
-        alert("Save failed: " + error.message);
+      if (editingRecipeId) {
+        // 1. 修改/更新逻辑 (UPDATE)
+        const { error } = await supabaseClient
+          .from('recipes')
+          .update(recipeData)
+          .eq('id', editingRecipeId);
+
+        if (error) {
+          alert("Update failed: " + error.message);
+        } else {
+          alert("Recipe updated successfully!");
+          await fetchRecipes(); // 重新拉取最新数据
+          $("modal").classList.add("hidden");
+          showDetail(editingRecipeId); // 刷新当前详情页
+        }
       } else {
-        if (data && data.length > 0) recipes.unshift(data[0]);
-        render();
-        $("modal").classList.add("hidden");
+        // 2. 新增逻辑 (INSERT)
+        if (!recipeData.image) recipeData.image = "";
+        
+        const { data, error } = await supabaseClient
+          .from('recipes')
+          .insert([recipeData])
+          .select();
 
-        ["name", "minutes", "ingredients", "steps", "image"].forEach(id => {
-          if ($(id))$(id).value = "";
-        });
+        if (error) {
+          alert("Save failed: " + error.message);
+        } else {
+          alert("Recipe saved successfully!");
+          if (data && data.length > 0) recipes.unshift(data[0]);
+          render();
+          $("modal").classList.add("hidden");
+        }
       }
     };
 
@@ -237,12 +282,12 @@ if ($("saveBtn")) {
       rd.onload = e => finishSave(e.target.result);
       rd.readAsDataURL(file);
     } else {
-      finishSave("");
+      finishSave(null);
     }
   };
 }
 
-// 登录/退出状态监听
+// 监听登录/退出状态
 supabaseClient.auth.onAuthStateChange((event, session) => {
   const authEl = $("authContainer");
   const userControlEl = $("userControlSection");
@@ -293,7 +338,7 @@ if (logoutBtn) {
   };
 }
 
-// 注销账号按钮（调用 Supabase RPC 或安全退出）
+// 注销账号按钮
 const deleteAccountBtn = $("deleteAccountBtn");
 if (deleteAccountBtn) {
   deleteAccountBtn.onclick = async () => {
@@ -311,5 +356,5 @@ if (deleteAccountBtn) {
   };
 }
 
-// 页面加载初始化
+// 初始化
 render();
