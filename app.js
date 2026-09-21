@@ -31,7 +31,6 @@ document.querySelectorAll("[data-page]").forEach(b => {
   b.onclick = () => page(b.dataset.page);
 });
 
-// 拉取菜谱
 async function fetchRecipes() {
   const { data, error } = await supabaseClient
     .from('recipes')
@@ -46,7 +45,6 @@ async function fetchRecipes() {
   render();
 }
 
-// 渲染列表（含关键词过滤）
 function render() {
   if ($("count")) $("count").textContent = recipes.length;
 
@@ -55,7 +53,6 @@ function render() {
 
   const query = ($("searchInput")?.value || "").toLowerCase().trim();
 
-  // 根据搜索关键词过滤
   const filteredRecipes = recipes.filter(r => {
     const nameMatch = (r.name || "").toLowerCase().includes(query);
     const ingMatch = (r.ingredients || "").toLowerCase().includes(query);
@@ -64,7 +61,7 @@ function render() {
 
   if (!filteredRecipes.length) {
     list.innerHTML = `
-      <div class="empty" style="grid-column:1/-1; text-align:center; padding: 20px;">
+      <div class="empty" style="grid-column:1/-1; text-align:center; padding: 20px; color:#888;">
         ${query ? 'No matching recipes found' : 'No recipes yet. Click “＋ Add” in the top right to get started.'}
       </div>
     `;
@@ -81,7 +78,7 @@ function render() {
       <div class="card-body">
         <h3>${esc(r.name)}</h3>
         <p>${esc(r.category || "General")} · ${esc(r.minutes || "?")} min</p>
-        ${r.meal_types ? `<small style="color:#e67e22;">${esc(r.meal_types)}</small>` : ''}
+        ${r.meal_types ? `<small style="color:#e67e22; display:block; margin-top:4px;">${esc(r.meal_types)}</small>` : ''}
       </div>
     </div>
   `).join("");
@@ -91,12 +88,11 @@ function render() {
   });
 }
 
-// 绑定搜索框实时监听
 if ($("searchInput")) {
   $("searchInput").oninput = render;
 }
 
-// 抽签逻辑（带餐别筛选）
+// 抽签（模糊匹配 meal_types）
 if ($("drawBtn")) $("drawBtn").onclick = draw;
 if ($("againBtn")) $("againBtn").onclick = draw;
 if ($("detailBtn")) $("detailBtn").onclick = () => current && showDetail(current.id);
@@ -104,34 +100,33 @@ if ($("detailBtn")) $("detailBtn").onclick = () => current && showDetail(current
 function draw() {
   const selectedMeal = $("drawMealFilter") ? $("drawMealFilter").value : "all";
 
-  // 根据餐别筛选候选池
   let pool = recipes;
   if (selectedMeal !== "all") {
-    pool = recipes.filter(r => r.meal_types && r.meal_types.includes(selectedMeal));
+    pool = recipes.filter(r => {
+      if (!r.meal_types) return false;
+      return r.meal_types.toLowerCase().includes(selectedMeal.toLowerCase());
+    });
   }
 
   if (!pool.length) {
-    alert(`No recipes found for ${selectedMeal}. Please add some first!`);
+    alert(`No recipes found for "${selectedMeal}". Please edit your recipes to select this meal type!`);
     return;
   }
 
-  $("dice").classList.add("rolling");
   $("drawBtn").disabled = true;
 
   const chosen = pool[Math.floor(Math.random() * pool.length)];
 
   setTimeout(async () => {
     current = chosen;
-    await supabaseClient.from('recipes').update({ lastPicked: true }).eq('id', chosen.id);
 
-    $("dice").classList.remove("rolling");
     $("drawBtn").disabled = false;
     $("result").innerHTML = `<span>${esc(chosen.name)}</span>`;
     $("againBtn").classList.remove("hidden");
     $("detailBtn").classList.remove("hidden");
 
     render();
-  }, 900);
+  }, 300);
 }
 
 // 详情页
@@ -154,26 +149,26 @@ function showDetail(id) {
     .join("");
 
   $("detailContent").innerHTML = `
-    <div class="detail-card">
+    <div style="background:white; padding:20px; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
       ${
         r.image
-          ? `<img src="${r.image}">`
-          : '<div class="placeholder" style="height:220px">🍳</div>'
+          ? `<img src="${r.image}" style="width:100%; height:220px; object-fit:cover; border-radius:12px;">`
+          : '<div class="placeholder" style="height:200px; border-radius:12px; font-size:48px;">🍳</div>'
       }
-      <div class="detail-body">
+      <div style="margin-top:15px;">
         <h2>${esc(r.name)}</h2>
-        <span class="tag">
+        <p style="color:#7f8c8d; font-size:14px; margin-top:4px;">
           ${esc(r.category || "General")} · ${esc(r.minutes || "?")} min
-        </span>
-        ${r.meal_types ? `<p style="margin-top: 5px; color:#e67e22;"><b>Meal Types:</b> ${esc(r.meal_types)}</p>` : ''}
+        </p>
+        ${r.meal_types ? `<p style="margin-top: 6px; color:#e67e22; font-size:14px;"><b>Meal Types:</b> ${esc(r.meal_types)}</p>` : ''}
 
-        <h3>Ingredients</h3>
-        <ul>${ing || "<li>No ingredients added yet.</li>"}</ul>
+        <h3 style="margin-top:15px; font-size:16px;">Ingredients</h3>
+        <ul style="padding-left:20px; margin-top:5px; font-size:14px;">${ing || "<li>No ingredients added.</li>"}</ul>
 
-        <h3>Instructions</h3>
-        <ol>${steps || "<li>No instructions added yet.</li>"}</ol>
+        <h3 style="margin-top:15px; font-size:16px;">Instructions</h3>
+        <ol style="padding-left:20px; margin-top:5px; font-size:14px;">${steps || "<li>No instructions added.</li>"}</ol>
 
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
           <button id="editBtn" style="flex: 1;">Edit this recipe</button>
           <button class="secondary" id="deleteBtn" style="flex: 1; background: #e74c3c; color: white;">Delete</button>
         </div>
@@ -190,7 +185,6 @@ function showDetail(id) {
     $("ingredients").value = r.ingredients || "";
     $("steps").value = r.steps || "";
     
-    // 还原复选框勾选状态
     const savedTypes = (r.meal_types || "").split(", ");
     document.querySelectorAll('input[name="mealType"]').forEach(cb => {
       cb.checked = savedTypes.includes(cb.value);
@@ -220,7 +214,7 @@ function showDetail(id) {
   page("detail");
 }
 
-// 弹窗管理
+// 弹窗控制
 if ($("addBtn")) {
   $("addBtn").onclick = () => {
     editingRecipeId = null;
@@ -236,7 +230,7 @@ if ($("closeModal")) {
   $("closeModal").onclick = () => $("modal").classList.add("hidden");
 }
 
-// 保存菜谱
+// 保存逻辑
 if ($("saveBtn")) {
   $("saveBtn").onclick = () => {
     const name = $("name").value.trim();
@@ -245,7 +239,6 @@ if ($("saveBtn")) {
       return;
     }
 
-    // 获取勾选的餐别多选值
     const selectedMealTypes = Array.from(document.querySelectorAll('input[name="mealType"]:checked'))
       .map(cb => cb.value)
       .join(", ");
@@ -314,7 +307,7 @@ if ($("saveBtn")) {
   };
 }
 
-// 账号登录与状态
+// 登录与账户控制
 supabaseClient.auth.onAuthStateChange((event, session) => {
   const authEl = $("authContainer");
   const userControlEl = $("userControlSection");
