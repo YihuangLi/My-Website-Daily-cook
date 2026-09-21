@@ -85,7 +85,7 @@ function render() {
       <div class="card-body">
         <h3>${esc(r.name)}</h3>
         <p>${esc(r.category || "General")} · ${esc(r.minutes || "?")} min</p>
-        <div class="tags-container">
+        <div class="tags-container" style="margin-top:6px;">
           ${renderMealTags(r.meal_types)}
         </div>
       </div>
@@ -138,7 +138,7 @@ function draw() {
   }, 300);
 }
 
-// 详情页
+// 详情页显示
 function showDetail(id) {
   current = recipes.find(r => String(r.id) === String(id));
   if (!current) return;
@@ -187,7 +187,7 @@ function showDetail(id) {
     </div>
   `;
 
-  // 点击编辑回显数据
+  // 点击编辑按钮（重点：正确勾选当前选中的 Meal Type）
   $("editBtn").onclick = () => {
     editingRecipeId = r.id;
     $("name").value = r.name || "";
@@ -196,6 +196,9 @@ function showDetail(id) {
     $("ingredients").value = r.ingredients || "";
     $("steps").value = r.steps || "";
     
+    // 清空图片输入框
+    if ($("image")) $("image").value = "";
+
     const savedTypes = (r.meal_types || "").split(",").map(s => s.trim());
     document.querySelectorAll('input[name="mealType"]').forEach(cb => {
       cb.checked = savedTypes.includes(cb.value);
@@ -241,7 +244,7 @@ if ($("closeModal")) {
   $("closeModal").onclick = () => $("modal").classList.add("hidden");
 }
 
-// 点击保存提交 Supabase（重点修复点）
+// 点击 Save 保存提交到 Supabase
 if ($("saveBtn")) {
   $("saveBtn").onclick = () => {
     const name = $("name").value.trim();
@@ -250,12 +253,13 @@ if ($("saveBtn")) {
       return;
     }
 
-    // 收集所有勾选的 mealType
+    // 获取勾选的 Meal Types
     const selectedMealTypes = Array.from(document.querySelectorAll('input[name="mealType"]:checked'))
       .map(cb => cb.value)
       .join(", ");
 
-    const file = $("image").files[0];
+    const fileInput = $("image");
+    const file = fileInput ? fileInput.files[0] : null;
 
     const finishSave = async (imageData) => {
       const { data: { session } } = await supabaseClient.auth.getSession();
@@ -264,17 +268,17 @@ if ($("saveBtn")) {
         return;
       }
 
-      // 构建传给 Supabase 的字段数据
       const recipeData = {
         name: name,
         category: $("category").value,
         minutes: $("minutes").value,
         ingredients: $("ingredients").value,
         steps: $("steps").value,
-        meal_types: selectedMealTypes, // 确保精准对应 supabase 里的列名
+        meal_types: selectedMealTypes,
         user_id: session.user.id
       };
 
+      // 只有选了新图片才更新图片，没选就保留原图片
       if (imageData) {
         recipeData.image = imageData;
       }
@@ -287,6 +291,7 @@ if ($("saveBtn")) {
 
         if (error) {
           alert("Update failed: " + error.message);
+          console.error("Supabase update error:", error);
         } else {
           alert("Recipe updated successfully!");
           await fetchRecipes();
@@ -302,6 +307,7 @@ if ($("saveBtn")) {
 
         if (error) {
           alert("Save failed: " + error.message);
+          console.error("Supabase insert error:", error);
         } else {
           alert("Recipe saved successfully!");
           await fetchRecipes();
