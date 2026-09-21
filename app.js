@@ -45,6 +45,13 @@ async function fetchRecipes() {
   render();
 }
 
+// 生成 Meal Type 标签 HTML
+function renderMealTags(mealTypesStr) {
+  if (!mealTypesStr) return '';
+  const tags = mealTypesStr.split(',').map(t => t.trim()).filter(Boolean);
+  return tags.map(tag => `<span class="meal-tag">${esc(tag)}</span>`).join('');
+}
+
 function render() {
   if ($("count")) $("count").textContent = recipes.length;
 
@@ -78,7 +85,9 @@ function render() {
       <div class="card-body">
         <h3>${esc(r.name)}</h3>
         <p>${esc(r.category || "General")} · ${esc(r.minutes || "?")} min</p>
-        ${r.meal_types ? `<small style="color:#e67e22; display:block; margin-top:4px;">${esc(r.meal_types)}</small>` : ''}
+        <div class="tags-container">
+          ${renderMealTags(r.meal_types)}
+        </div>
       </div>
     </div>
   `).join("");
@@ -92,7 +101,7 @@ if ($("searchInput")) {
   $("searchInput").oninput = render;
 }
 
-// 抽签（模糊匹配 meal_types）
+// 抽签逻辑
 if ($("drawBtn")) $("drawBtn").onclick = draw;
 if ($("againBtn")) $("againBtn").onclick = draw;
 if ($("detailBtn")) $("detailBtn").onclick = () => current && showDetail(current.id);
@@ -160,7 +169,9 @@ function showDetail(id) {
         <p style="color:#7f8c8d; font-size:14px; margin-top:4px;">
           ${esc(r.category || "General")} · ${esc(r.minutes || "?")} min
         </p>
-        ${r.meal_types ? `<p style="margin-top: 6px; color:#e67e22; font-size:14px;"><b>Meal Types:</b> ${esc(r.meal_types)}</p>` : ''}
+        <div class="tags-container" style="margin-top:8px;">
+          ${renderMealTags(r.meal_types)}
+        </div>
 
         <h3 style="margin-top:15px; font-size:16px;">Ingredients</h3>
         <ul style="padding-left:20px; margin-top:5px; font-size:14px;">${ing || "<li>No ingredients added.</li>"}</ul>
@@ -176,7 +187,7 @@ function showDetail(id) {
     </div>
   `;
 
-  // 点击编辑
+  // 点击编辑回显数据
   $("editBtn").onclick = () => {
     editingRecipeId = r.id;
     $("name").value = r.name || "";
@@ -185,7 +196,7 @@ function showDetail(id) {
     $("ingredients").value = r.ingredients || "";
     $("steps").value = r.steps || "";
     
-    const savedTypes = (r.meal_types || "").split(", ");
+    const savedTypes = (r.meal_types || "").split(",").map(s => s.trim());
     document.querySelectorAll('input[name="mealType"]').forEach(cb => {
       cb.checked = savedTypes.includes(cb.value);
     });
@@ -193,7 +204,7 @@ function showDetail(id) {
     $("modal").classList.remove("hidden");
   };
 
-  // 点击删除
+  // 删除菜谱
   $("deleteBtn").onclick = async () => {
     if (confirm("Are you sure you want to delete this recipe?")) {
       const { error } = await supabaseClient
@@ -214,7 +225,7 @@ function showDetail(id) {
   page("detail");
 }
 
-// 弹窗控制
+// 打开新增弹窗
 if ($("addBtn")) {
   $("addBtn").onclick = () => {
     editingRecipeId = null;
@@ -230,7 +241,7 @@ if ($("closeModal")) {
   $("closeModal").onclick = () => $("modal").classList.add("hidden");
 }
 
-// 保存逻辑
+// 点击保存提交 Supabase（重点修复点）
 if ($("saveBtn")) {
   $("saveBtn").onclick = () => {
     const name = $("name").value.trim();
@@ -239,6 +250,7 @@ if ($("saveBtn")) {
       return;
     }
 
+    // 收集所有勾选的 mealType
     const selectedMealTypes = Array.from(document.querySelectorAll('input[name="mealType"]:checked'))
       .map(cb => cb.value)
       .join(", ");
@@ -252,13 +264,14 @@ if ($("saveBtn")) {
         return;
       }
 
+      // 构建传给 Supabase 的字段数据
       const recipeData = {
         name: name,
         category: $("category").value,
         minutes: $("minutes").value,
         ingredients: $("ingredients").value,
         steps: $("steps").value,
-        meal_types: selectedMealTypes,
+        meal_types: selectedMealTypes, // 确保精准对应 supabase 里的列名
         user_id: session.user.id
       };
 
@@ -307,7 +320,7 @@ if ($("saveBtn")) {
   };
 }
 
-// 登录与账户控制
+// 登录控制与状态监听
 supabaseClient.auth.onAuthStateChange((event, session) => {
   const authEl = $("authContainer");
   const userControlEl = $("userControlSection");
@@ -361,7 +374,7 @@ if (deleteAccountBtn) {
     if (confirm("确定要注销并彻底删除当前账号吗？")) {
       const { error } = await supabaseClient.rpc("delete_own_user");
       if (error) {
-        alert("注销失败，退回为普通退出: " + error.message);
+        alert("注销失败: " + error.message);
         await supabaseClient.auth.signOut();
       } else {
         await supabaseClient.auth.signOut();
