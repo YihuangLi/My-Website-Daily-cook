@@ -1,139 +1,102 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#fffaf2">
-  <title>What's for Dinner?</title>
-  <link rel="manifest" href="manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What to eat</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header>
-    <h1>What's for Dinner?</h1>
-    <p>Save your recipes. Let fate pick your next meal.</p>
+    <h1>What to eat</h1>
+    <button id="addBtn">＋ Add</button>
   </header>
 
   <main>
-      <div id="authContainer" class="hero" style="margin-bottom: 20px;">
-        <h2>Login / Sign Up</h2>
-        <input id="authEmail" type="email" placeholder="Email" style="width:100%; margin-bottom:10px; padding:10px; border-radius:8px; border:1px solid #ccc;">
-        <input id="authPassword" type="password" placeholder="Password" style="width:100%; margin-bottom:10px; padding:10px; border-radius:8px; border:1px solid #ccc;">
-        <button id="loginBtn" class="primary">Log In</button>
-        <button id="signUpBtn" class="secondary" style="width:100%; margin-top:8px;">Sign Up</button>
-      </div>
-      <!-- 在主界面合适的位置添加退出和注销按钮 -->
-      <div id="userControlSection" style="display: none; margin-bottom: 20px;">
-        <button id="logoutBtn" style="background-color: #6c757d; color: white;">Log Out</button>
-        <button id="deleteAccountBtn" style="background-color: #dc3545; color: white;">Delete Account</button>
-      </div>
-    <section id="home" class="page active">
-      <div class="hero">
-        <div class="dice" id="dice">🎲</div>
-
-        <div class="result" id="result">
-          <span class="muted">What should we cook today?</span>
-        </div>
-
-        <button class="primary" id="drawBtn">Pick a Recipe</button>
-
-        <div class="actions">
-          <button id="againBtn" class="secondary hidden">
-            Pick Again
-          </button>
-          <button id="detailBtn" class="secondary hidden">
-            View Recipe
-          </button>
-        </div>
+    <!-- 抽签页面 -->
+    <section id="draw" class="page active">
+      <div class="filter-group" style="text-align: center; margin-bottom: 15px;">
+        <label style="margin-right: 5px;">Pick for:</label>
+        <select id="drawMealFilter">
+          <option value="all">All Meals</option>
+          <option value="Breakfast">Breakfast</option>
+          <option value="Lunch">Lunch</option>
+          <option value="Dinner">Dinner</option>
+          <option value="Dessert">Dessert</option>
+        </select>
       </div>
 
-      <div class="stats">
-        <div>
-          <strong id="count">0</strong>
-          <span>Recipes</span>
-        </div>
-        <div>
-          <strong id="recent">0</strong>
-          <span>Recently Picked</span>
-        </div>
+      <div class="dice-container">
+        <div id="dice">🎲</div>
+      </div>
+      <div id="result"></div>
+      <div class="button-group">
+        <button id="drawBtn">Pick a Recipe</button>
+        <button id="againBtn" class="hidden">Again</button>
+        <button id="detailBtn" class="hidden">View Recipe</button>
       </div>
     </section>
 
+    <!-- 菜谱列表页面 -->
     <section id="recipes" class="page">
-      <div class="section-title">
-        <h2>My Recipes</h2>
-        <button id="addBtn">＋ Add</button>
+      <div class="search-bar" style="margin-bottom: 15px;">
+        <input type="text" id="searchInput" placeholder="Search recipe name or ingredients..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;">
       </div>
-
       <div id="recipeList" class="grid"></div>
     </section>
 
+    <!-- 菜谱详情页面 -->
     <section id="detail" class="page">
-      <button class="back" data-page="recipes">‹ Back</button>
       <div id="detailContent"></div>
+    </section>
+
+    <!-- 个人设置页面 -->
+    <section id="profile" class="page">
+      <h2>Profile</h2>
+      <div id="authContainer" style="margin-bottom: 20px;">
+        <input type="email" id="authEmail" placeholder="Email" style="display:block; margin-bottom:8px; width:100%; padding:8px;">
+        <input type="password" id="authPassword" placeholder="Password" style="display:block; margin-bottom:12px; width:100%; padding:8px;">
+        <button id="loginBtn">Login</button>
+        <button id="signUpBtn" class="secondary">Sign Up</button>
+      </div>
+
+      <div id="userControlSection" style="display:none;">
+        <p>Recipes count: <span id="count">0</span></p>
+        <button id="logoutBtn" style="margin-top: 10px; width:100%;">Logout</button>
+        <button id="deleteAccountBtn" class="secondary" style="margin-top: 10px; width:100%; background: #e74c3c; color: white;">Delete Account</button>
+      </div>
     </section>
   </main>
 
-  <nav>
-    <button class="nav active" data-page="home">
-      🎲<span>Today</span>
-    </button>
-    <button class="nav" data-page="recipes">
-      🍳<span>Recipes</span>
-    </button>
+  <nav class="bottom-nav">
+    <button class="nav active" data-page="draw">🎲 Pick</button>
+    <button class="nav" data-page="recipes">📖 Recipes</button>
+    <button class="nav" data-page="profile">👤 Profile</button>
   </nav>
 
-  <div class="modal hidden" id="modal">
-    <div class="sheet">
-      <button class="close" id="closeModal" aria-label="Close">×</button>
+  <!-- 弹窗：添加/编辑菜谱 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2>Recipe Details</h2>
+      <input type="text" id="name" placeholder="Recipe Name">
+      <input type="text" id="category" placeholder="Category (e.g. Italian, Thai)">
+      
+      <!-- 新增：餐别多选栏目 -->
+      <div style="margin: 10px 0; text-align: left;">
+        <label style="display:block; font-weight:bold; margin-bottom:5px;">Meal Type (Select multiple):</label>
+        <label><input type="checkbox" name="mealType" value="Breakfast"> Breakfast</label>
+        <label style="margin-left:8px;"><input type="checkbox" name="mealType" value="Lunch"> Lunch</label>
+        <label style="margin-left:8px;"><input type="checkbox" name="mealType" value="Dinner"> Dinner</label>
+        <label style="margin-left:8px;"><input type="checkbox" name="mealType" value="Dessert"> Dessert</label>
+      </div>
 
-      <h2>Add a Recipe</h2>
-
-      <label>
-        Recipe Name
-        <input id="name" placeholder="e.g. Tomato and Egg Noodles">
-      </label>
-
-      <label>
-        Category
-        <select id="category">
-          <option>Home Cooking</option>
-          <option>Noodles &amp; Pasta</option>
-          <option>Rice Dishes</option>
-          <option>Soups</option>
-          <option>Breakfast</option>
-          <option>Other</option>
-        </select>
-      </label>
-
-      <label>
-        Cooking Time (minutes)
-        <input id="minutes" type="number" min="1" placeholder="30">
-      </label>
-
-      <label>
-        Ingredients
-        <textarea
-          id="ingredients"
-          placeholder="2 tomatoes&#10;2 eggs&#10;200 g noodles"
-        ></textarea>
-      </label>
-
-      <label>
-        Instructions
-        <textarea
-          id="steps"
-          placeholder="1. ...&#10;2. ..."
-        ></textarea>
-      </label>
-
-      <label>
-        Photo
-        <input id="image" type="file" accept="image/*">
-      </label>
-
-      <button class="primary" id="saveBtn">Save Recipe</button>
+      <input type="number" id="minutes" placeholder="Cook Time (mins)">
+      <textarea id="ingredients" placeholder="Ingredients (one per line)"></textarea>
+      <textarea id="steps" placeholder="Instructions (one per line)"></textarea>
+      <input type="file" id="image" accept="image/*">
+      <button id="saveBtn">Save Recipe</button>
     </div>
   </div>
 
