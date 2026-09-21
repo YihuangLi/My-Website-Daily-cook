@@ -33,9 +33,9 @@ document.querySelectorAll("[data-page]").forEach(b => {
   b.onclick = () => page(b.dataset.page);
 });
 
-// 从 Supabase 拉取菜谱数据
+// 从 Supabase 拉取菜谱数据（作为唯一真实数据源）
 async function fetchRecipes() {
-  const { data, error } = await supabaseClient.from('recipes').select('*');
+  const { data, error } = await supabaseClient.from('recipes').select('*').order('id', { ascending: false });
   if (error) {
     console.error("Fetch recipes error:", error);
     return;
@@ -120,7 +120,7 @@ function draw() {
   }, 900);
 }
 
-// 展示菜谱详情（含编辑和删除按钮）
+// 展示菜谱详情（含编辑和彻底删除）
 function showDetail(id) {
   current = recipes.find(r => r.id === id);
   if (!current) return;
@@ -166,9 +166,9 @@ function showDetail(id) {
     </div>
   `;
 
-  // 点击编辑按钮：带入数据并打开弹窗
+  // 编辑逻辑
   $("editBtn").onclick = () => {
-    editingRecipeId = r.id; // 记下正在编辑的菜谱 ID
+    editingRecipeId = r.id;
     $("name").value = r.name || "";
     $("category").value = r.category || "";
     $("minutes").value = r.minutes || "";
@@ -178,15 +178,15 @@ function showDetail(id) {
     $("modal").classList.remove("hidden");
   };
 
-  // 删除逻辑
+  // 修复后的删除逻辑（彻底删除并重新同步 Supabase）
   $("deleteBtn").onclick = async () => {
     if (confirm("Are you sure you want to delete this recipe?")) {
       const { error } = await supabaseClient.from('recipes').delete().eq('id', r.id);
       if (error) {
         alert("Delete failed: " + error.message);
       } else {
-        recipes = recipes.filter(x => x.id !== r.id);
-        render();
+        alert("Recipe deleted!");
+        await fetchRecipes(); // 重新向服务器同步最新的数据
         page("recipes");
       }
     }
@@ -195,10 +195,10 @@ function showDetail(id) {
   page("detail");
 }
 
-// 打开添加弹窗（清空编辑状态）
+// 打开添加弹窗
 if ($("addBtn")) {
   $("addBtn").onclick = () => {
-    editingRecipeId = null; // 清空编辑状态，表示这是新增
+    editingRecipeId = null;
     ["name", "minutes", "ingredients", "steps", "image"].forEach(id => {
       if ($(id))$(id).value = "";
     });
@@ -210,7 +210,7 @@ if ($("closeModal")) {
   $("closeModal").onclick = () => $("modal").classList.add("hidden");
 }
 
-// 保存逻辑（兼顾【新增】与【修改/Update】）
+// 保存逻辑（禁用本地叠加，全部走 Supabase 重新拉取）
 if ($("saveBtn")) {
   $("saveBtn").onclick = () => {
     const name = $("name").value.trim();
@@ -237,13 +237,12 @@ if ($("saveBtn")) {
         user_id: session.user.id
       };
 
-      // 如果选了新图片才更新图片，没选就保留原样
       if (imageData) {
         recipeData.image = imageData;
       }
 
       if (editingRecipeId) {
-        // 1. 修改/更新逻辑 (UPDATE)
+        // 更新逻辑
         const { error } = await supabaseClient
           .from('recipes')
           .update(recipeData)
@@ -253,25 +252,23 @@ if ($("saveBtn")) {
           alert("Update failed: " + error.message);
         } else {
           alert("Recipe updated successfully!");
-          await fetchRecipes(); // 重新拉取最新数据
+          await fetchRecipes(); // 刷新重新拉取
           $("modal").classList.add("hidden");
-          showDetail(editingRecipeId); // 刷新当前详情页
+          showDetail(editingRecipeId);
         }
       } else {
-        // 2. 新增逻辑 (INSERT)
+        // 新增逻辑
         if (!recipeData.image) recipeData.image = "";
         
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
           .from('recipes')
-          .insert([recipeData])
-          .select();
+          .insert([recipeData]);
 
         if (error) {
           alert("Save failed: " + error.message);
         } else {
           alert("Recipe saved successfully!");
-          if (data && data.length > 0) recipes.unshift(data[0]);
-          render();
+          await fetchRecipes(); // 强制从服务器同步，防重复
           $("modal").classList.add("hidden");
         }
       }
@@ -287,7 +284,7 @@ if ($("saveBtn")) {
   };
 }
 
-// 监听登录/退出状态
+// 监听登录状态
 supabaseClient.auth.onAuthStateChange((event, session) => {
   const authEl = $("authContainer");
   const userControlEl = $("userControlSection");
@@ -304,7 +301,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// 登录按钮事件
+// 登录按钮
 if ($("loginBtn")) {
   $("loginBtn").onclick = async () => {
     const email = $("authEmail").value;
@@ -314,7 +311,7 @@ if ($("loginBtn")) {
   };
 }
 
-// 注册按钮事件
+// 注册按钮
 if ($("signUpBtn")) {
   $("signUpBtn").onclick = async () => {
     const email = $("authEmail").value;
@@ -325,7 +322,7 @@ if ($("signUpBtn")) {
   };
 }
 
-// 退出登录按钮
+// 退出登录
 const logoutBtn = $("logoutBtn");
 if (logoutBtn) {
   logoutBtn.onclick = async () => {
@@ -338,7 +335,7 @@ if (logoutBtn) {
   };
 }
 
-// 注销账号按钮
+// 注销账号
 const deleteAccountBtn = $("deleteAccountBtn");
 if (deleteAccountBtn) {
   deleteAccountBtn.onclick = async () => {
@@ -356,5 +353,4 @@ if (deleteAccountBtn) {
   };
 }
 
-// 初始化
 render();
