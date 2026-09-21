@@ -284,6 +284,7 @@ if ($("saveBtn")) {
       }
 
       if (editingRecipeId) {
+        // 更新现有菜谱
         const { error } = await supabaseClient
           .from('recipes')
           .update(recipeData)
@@ -299,6 +300,7 @@ if ($("saveBtn")) {
           showDetail(editingRecipeId);
         }
       } else {
+        // 新增菜谱
         if (!recipeData.image) recipeData.image = "";
         
         const { error } = await supabaseClient
