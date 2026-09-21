@@ -4,10 +4,9 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let recipes = [];
 let current = null;
-let editingRecipeId = null; // 用于记录当前正在编辑的菜谱 ID
+let editingRecipeId = null;
 const $ = id => document.getElementById(id);
 
-// 辅助函数：转义 HTML 字符防止注入
 function esc(s = "") {
   return String(s).replace(/[&<>"']/g, m => ({
     "&": "&amp;",
@@ -18,7 +17,6 @@ function esc(s = "") {
   }[m]));
 }
 
-// 页面切换逻辑
 function page(id) {
   document.querySelectorAll(".page").forEach(p => {
     p.classList.toggle("active", p.id === id);
@@ -33,9 +31,13 @@ document.querySelectorAll("[data-page]").forEach(b => {
   b.onclick = () => page(b.dataset.page);
 });
 
-// 从 Supabase 拉取菜谱数据（作为唯一真实数据源）
+// 拉取菜谱
 async function fetchRecipes() {
-  const { data, error } = await supabaseClient.from('recipes').select('*').order('id', { ascending: false });
+  const { data, error } = await supabaseClient
+    .from('recipes')
+    .select('*')
+    .order('id', { ascending: false });
+
   if (error) {
     console.error("Fetch recipes error:", error);
     return;
@@ -44,26 +46,32 @@ async function fetchRecipes() {
   render();
 }
 
-// 渲染菜谱列表
+// 渲染列表（含关键词过滤）
 function render() {
   if ($("count")) $("count").textContent = recipes.length;
-  if ($("recent")) $("recent").textContent = recipes.filter(r => r.lastPicked).length;
 
   const list = $("recipeList");
   if (!list) return;
 
-  if (!recipes.length) {
+  const query = ($("searchInput")?.value || "").toLowerCase().trim();
+
+  // 根据搜索关键词过滤
+  const filteredRecipes = recipes.filter(r => {
+    const nameMatch = (r.name || "").toLowerCase().includes(query);
+    const ingMatch = (r.ingredients || "").toLowerCase().includes(query);
+    return nameMatch || ingMatch;
+  });
+
+  if (!filteredRecipes.length) {
     list.innerHTML = `
-      <div class="empty" style="grid-column:1/-1">
-        No recipes yet
-        <br>
-        Click “＋ Add” in the top right to get started
+      <div class="empty" style="grid-column:1/-1; text-align:center; padding: 20px;">
+        ${query ? 'No matching recipes found' : 'No recipes yet. Click “＋ Add” in the top right to get started.'}
       </div>
     `;
     return;
   }
 
-  list.innerHTML = recipes.map(r => `
+  list.innerHTML = filteredRecipes.map(r => `
     <div class="card" data-id="${r.id}">
       ${
         r.image
@@ -72,7 +80,8 @@ function render() {
       }
       <div class="card-body">
         <h3>${esc(r.name)}</h3>
-        <p>${esc(r.category)} · ${esc(r.minutes || "?")} min</p>
+        <p>${esc(r.category || "General")} · ${esc(r.minutes || "?")} min</p>
+        ${r.meal_types ? `<small style="color:#e67e22;">${esc(r.meal_types)}</small>` : ''}
       </div>
     </div>
   `).join("");
@@ -82,32 +91,37 @@ function render() {
   });
 }
 
-// 抽签逻辑
+// 绑定搜索框实时监听
+if ($("searchInput")) {
+  $("searchInput").oninput = render;
+}
+
+// 抽签逻辑（带餐别筛选）
 if ($("drawBtn")) $("drawBtn").onclick = draw;
 if ($("againBtn")) $("againBtn").onclick = draw;
 if ($("detailBtn")) $("detailBtn").onclick = () => current && showDetail(current.id);
 
 function draw() {
-  if (!recipes.length) {
-    alert("Please add at least one recipe first.");
-    page("recipes");
+  const selectedMeal = $("drawMealFilter") ? $("drawMealFilter").value : "all";
+
+  // 根据餐别筛选候选池
+  let pool = recipes;
+  if (selectedMeal !== "all") {
+    pool = recipes.filter(r => r.meal_types && r.meal_types.includes(selectedMeal));
+  }
+
+  if (!pool.length) {
+    alert(`No recipes found for ${selectedMeal}. Please add some first!`);
     return;
   }
 
   $("dice").classList.add("rolling");
   $("drawBtn").disabled = true;
 
-  const pool = recipes.length > 2
-    ? recipes.filter(r => !r.lastPicked)
-    : recipes;
-
-  const chosen = pool[Math.floor(Math.random() * pool.length)] || recipes[0];
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
 
   setTimeout(async () => {
-    recipes.forEach(r => r.lastPicked = false);
-    chosen.lastPicked = true;
     current = chosen;
-
     await supabaseClient.from('recipes').update({ lastPicked: true }).eq('id', chosen.id);
 
     $("dice").classList.remove("rolling");
@@ -120,9 +134,9 @@ function draw() {
   }, 900);
 }
 
-// 展示菜谱详情（含编辑和彻底删除）
+// 详情页
 function showDetail(id) {
-  current = recipes.find(r => r.id === id);
+  current = recipes.find(r => String(r.id) === String(id));
   if (!current) return;
 
   const r = current;
@@ -149,8 +163,9 @@ function showDetail(id) {
       <div class="detail-body">
         <h2>${esc(r.name)}</h2>
         <span class="tag">
-          ${esc(r.category)} · ${esc(r.minutes || "?")} min
+          ${esc(r.category || "General")} · ${esc(r.minutes || "?")} min
         </span>
+        ${r.meal_types ? `<p style="margin-top: 5px; color:#e67e22;"><b>Meal Types:</b> ${esc(r.meal_types)}</p>` : ''}
 
         <h3>Ingredients</h3>
         <ul>${ing || "<li>No ingredients added yet.</li>"}</ul>
@@ -166,7 +181,7 @@ function showDetail(id) {
     </div>
   `;
 
-  // 编辑逻辑
+  // 点击编辑
   $("editBtn").onclick = () => {
     editingRecipeId = r.id;
     $("name").value = r.name || "";
@@ -175,18 +190,28 @@ function showDetail(id) {
     $("ingredients").value = r.ingredients || "";
     $("steps").value = r.steps || "";
     
+    // 还原复选框勾选状态
+    const savedTypes = (r.meal_types || "").split(", ");
+    document.querySelectorAll('input[name="mealType"]').forEach(cb => {
+      cb.checked = savedTypes.includes(cb.value);
+    });
+
     $("modal").classList.remove("hidden");
   };
 
-  // 修复后的删除逻辑（彻底删除并重新同步 Supabase）
+  // 点击删除
   $("deleteBtn").onclick = async () => {
     if (confirm("Are you sure you want to delete this recipe?")) {
-      const { error } = await supabaseClient.from('recipes').delete().eq('id', r.id);
+      const { error } = await supabaseClient
+        .from('recipes')
+        .delete()
+        .eq('id', r.id);
+
       if (error) {
         alert("Delete failed: " + error.message);
       } else {
         alert("Recipe deleted!");
-        await fetchRecipes(); // 重新向服务器同步最新的数据
+        await fetchRecipes();
         page("recipes");
       }
     }
@@ -195,13 +220,14 @@ function showDetail(id) {
   page("detail");
 }
 
-// 打开添加弹窗
+// 弹窗管理
 if ($("addBtn")) {
   $("addBtn").onclick = () => {
     editingRecipeId = null;
     ["name", "minutes", "ingredients", "steps", "image"].forEach(id => {
       if ($(id))$(id).value = "";
     });
+    document.querySelectorAll('input[name="mealType"]').forEach(cb => cb.checked = false);
     $("modal").classList.remove("hidden");
   };
 }
@@ -210,7 +236,7 @@ if ($("closeModal")) {
   $("closeModal").onclick = () => $("modal").classList.add("hidden");
 }
 
-// 保存逻辑（禁用本地叠加，全部走 Supabase 重新拉取）
+// 保存菜谱
 if ($("saveBtn")) {
   $("saveBtn").onclick = () => {
     const name = $("name").value.trim();
@@ -218,6 +244,11 @@ if ($("saveBtn")) {
       alert("Please enter a recipe name.");
       return;
     }
+
+    // 获取勾选的餐别多选值
+    const selectedMealTypes = Array.from(document.querySelectorAll('input[name="mealType"]:checked'))
+      .map(cb => cb.value)
+      .join(", ");
 
     const file = $("image").files[0];
 
@@ -234,6 +265,7 @@ if ($("saveBtn")) {
         minutes: $("minutes").value,
         ingredients: $("ingredients").value,
         steps: $("steps").value,
+        meal_types: selectedMealTypes,
         user_id: session.user.id
       };
 
@@ -242,7 +274,6 @@ if ($("saveBtn")) {
       }
 
       if (editingRecipeId) {
-        // 更新逻辑
         const { error } = await supabaseClient
           .from('recipes')
           .update(recipeData)
@@ -252,12 +283,11 @@ if ($("saveBtn")) {
           alert("Update failed: " + error.message);
         } else {
           alert("Recipe updated successfully!");
-          await fetchRecipes(); // 刷新重新拉取
+          await fetchRecipes();
           $("modal").classList.add("hidden");
           showDetail(editingRecipeId);
         }
       } else {
-        // 新增逻辑
         if (!recipeData.image) recipeData.image = "";
         
         const { error } = await supabaseClient
@@ -268,7 +298,7 @@ if ($("saveBtn")) {
           alert("Save failed: " + error.message);
         } else {
           alert("Recipe saved successfully!");
-          await fetchRecipes(); // 强制从服务器同步，防重复
+          await fetchRecipes();
           $("modal").classList.add("hidden");
         }
       }
@@ -284,7 +314,7 @@ if ($("saveBtn")) {
   };
 }
 
-// 监听登录状态
+// 账号登录与状态
 supabaseClient.auth.onAuthStateChange((event, session) => {
   const authEl = $("authContainer");
   const userControlEl = $("userControlSection");
@@ -301,7 +331,6 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// 登录按钮
 if ($("loginBtn")) {
   $("loginBtn").onclick = async () => {
     const email = $("authEmail").value;
@@ -311,7 +340,6 @@ if ($("loginBtn")) {
   };
 }
 
-// 注册按钮
 if ($("signUpBtn")) {
   $("signUpBtn").onclick = async () => {
     const email = $("authEmail").value;
@@ -322,7 +350,6 @@ if ($("signUpBtn")) {
   };
 }
 
-// 退出登录
 const logoutBtn = $("logoutBtn");
 if (logoutBtn) {
   logoutBtn.onclick = async () => {
@@ -335,7 +362,6 @@ if (logoutBtn) {
   };
 }
 
-// 注销账号
 const deleteAccountBtn = $("deleteAccountBtn");
 if (deleteAccountBtn) {
   deleteAccountBtn.onclick = async () => {
